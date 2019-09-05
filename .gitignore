@@ -3,3 +3,11 @@
 __pycache__/
 results/vinet_agg_rec/davis_512/
 save_agg_rec_512.pth
+*.so
+*.o
+*.pth
+*.avi
+*.jpg
+*.tar
+debug.*
+DAVIS_demo

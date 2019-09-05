@@ -3,10 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import math
-from .flow_modules import (WarpingLayer, LongFlowNetCorr, MaskEstimator_ )
-from .gated_conv import GatedConvolution, GatedUpConvolution
-from .utils import *
-from .ConvLSTM import ConvLSTM
+from models.flow_modules import (WarpingLayer, LongFlowNetCorr, MaskEstimator_ )
+from models.gated_conv import GatedConvolution, GatedUpConvolution
+from models.utils import *
+from models.ConvLSTM import ConvLSTM
 import pdb
 
 class VI_2D_Encoder_3(nn.Module):
@@ -14,7 +14,7 @@ class VI_2D_Encoder_3(nn.Module):
         super(VI_2D_Encoder_3, self).__init__()
         self.opt = opt
         ### ENCODER
-        st = 2 if self.opt.double_size else 1
+        st = 1
         self.ec0 = GatedConvolution(5, 32, kernel_size=(3,3), stride=(st,st), padding=(1,1), bias=False, type='2d')
         self.ec1 = GatedConvolution(32, 64, kernel_size=(3,3), stride=(2,2), padding=(1,1), bias=False, type='2d')
         self.ec2 = GatedConvolution(64, 64, kernel_size=(3,3), stride=(1,1), padding=(1,1), bias=False, type='2d')
@@ -43,25 +43,23 @@ class VI_2D_Decoder_3(nn.Module):
     def __init__(self, opt):
         super(VI_2D_Decoder_3, self).__init__()
         self.opt=opt
-        dv = 2 if self.opt.double_size else 1
+        dv = 1
         ### decoder
         self.dc0 = GatedConvolution(128, 128, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         self.dc1 = GatedConvolution(128, 128, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         #### UPCONV
-        self.dc1_1 = GatedUpConvolution((1, opt.crop_size//4//dv, opt.crop_size//4//dv), 128 , 96, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
+        self.dc1_1 = GatedUpConvolution((1, opt.size[1]//4//dv, opt.size[0]//4//dv), 128 , 96, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         
         self.dc2_1 = GatedConvolution(96+96, 96, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         self.dc2_bt1 =  GatedConvolution(96, 96, kernel_size=(1,3,3), stride=(1,1,1), dilation=(1,2,2),padding=(0,2,2), bias=False)
         self.dc2_bt2 =  GatedConvolution(96, 96, kernel_size=(1,3,3), stride=(1,1,1), dilation=(1,4,4),padding=(0,4,4), bias=False)
         self.dc2_bt3 =  GatedConvolution(96, 96, kernel_size=(1,3,3), stride=(1,1,1), dilation=(1,8,8),padding=(0,8,8), bias=False)
         #### UPCONV
-        self.dc2_2 = GatedUpConvolution((1, opt.crop_size//2//dv, opt.crop_size//2//dv), 96, 64, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
+        self.dc2_2 = GatedUpConvolution((1, opt.size[1]//2//dv, opt.size[0]//2//dv), 96, 64, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         self.dc3_1 = GatedConvolution(64+64, 64, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         self.dc3_2 =  GatedConvolution(64, 64, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         #### UPCONV
-        self.dc4 = GatedUpConvolution((1, opt.crop_size//dv, opt.crop_size//dv), 64 , 32, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
-        if self.opt.double_size:
-            self.upsample = nn.Upsample(size=(1,opt.crop_size, opt.crop_size), mode='trilinear')
+        self.dc4 = GatedUpConvolution((1, opt.size[1]//dv, opt.size[0]//dv), 64 , 32, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         self.dc5 = GatedConvolution(32, 16, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         self.dc6 = nn.Conv3d(16, 3, kernel_size=(1,3,3), stride=(1,1,1), padding=(0,1,1), bias=False)
         
@@ -77,10 +75,7 @@ class VI_2D_Decoder_3(nn.Module):
         if  x2_64_warp is not None and x2_128_warp is not None:
             x1_64 = self.dc2_bt3(self.dc2_bt2(self.dc2_bt1(self.dc2_1(torch.cat([x1_64, x2_64_warp],1)))))
             x1_128 = self.dc2_2(x1_64)
-            if self.opt.double_size:
-                d6 = self.dc6(self.dc5(self.upsample(self.dc4(self.dc3_2(self.dc3_1(torch.cat([x1_128, x2_128_warp],1)))))))
-            else:
-                d6 = self.dc6(self.dc5(self.dc4(self.dc3_2(self.dc3_1(torch.cat([x1_128, x2_128_warp],1))))))
+            d6 = self.dc6(self.dc5(self.dc4(self.dc3_2(self.dc3_1(torch.cat([x1_128, x2_128_warp],1))))))
         return d6, None
 
 class VI_2D_BottleNeck(nn.Module):
@@ -255,6 +250,7 @@ class VINet_final(nn.Module):
         f_syn_128 = (1-occlusion_mask_128) * f1_128 + occlusion_mask_128 * f_agg_128
 
         output, _ = self.decoder(state[0].unsqueeze(2), x2_64_warp=f_syn_64.unsqueeze(2), x2_128_warp=f_syn_128.unsqueeze(2))
+        pred = output
         occ_mask = F.upsample(occlusion_mask, scale_factor=8, mode='bilinear')
         occ_mask_64 = F.upsample(occlusion_mask_64, scale_factor=4, mode='bilinear')
         occ_mask_128 = F.upsample(occlusion_mask_128, scale_factor=2, mode='bilinear')
@@ -268,18 +264,12 @@ class VINet_final(nn.Module):
                 flow6_256 = self.flownet_256(f1_256, f6_256_warp, flow6_256) + flow6_256
                 occlusion_mask_256 = self.masknet_256(torch.abs(f1_256 - f6_256_warp))
                 output_ = output
-                if self.opt.double_size:
-                    prev_feed_warp = self.warping_256(prev_feed[:,:3], flow6_512)
-                    occlusion_mask_512 = F.upsample(occlusion_mask_256, scale_factor=2, mode='nearest')
-                    output = (1-occlusion_mask_512.unsqueeze(2)) * output + occlusion_mask_512 * prev_feed_warp.unsqueeze(2)
-                    flow6_256=flow6_512
-                else:
-                    prev_feed_warp = self.warping_256(prev_feed[:,:3], flow6_256)                
-                    output = (1-occlusion_mask_256.unsqueeze(2)) * output + occlusion_mask_256 * prev_feed_warp.unsqueeze(2)
+                prev_feed_warp = self.warping_256(prev_feed[:,:3], flow6_256)                
+                output = (1-occlusion_mask_256.unsqueeze(2)) * output + occlusion_mask_256 * prev_feed_warp.unsqueeze(2)
                 if self.opt.loss_on_raw:
                     output = (output, output_)
 
-        return output, torch.stack([flow2_128,flow3_128,flow4_128,flow5_128, flow6_128],2), state, torch.stack([occ_mask, 1-occ_mask, occ_mask_64, 1-occ_mask_64, occ_mask_128, 1-occ_mask_128], 2), flow6_256
+        return pred, output, torch.stack([flow2_128,flow3_128,flow4_128,flow5_128, flow6_128],2), state, torch.stack([occ_mask, 1-occ_mask, occ_mask_64, 1-occ_mask_64, occ_mask_128, 1-occ_mask_128], 2), flow6_256
 
 
 
