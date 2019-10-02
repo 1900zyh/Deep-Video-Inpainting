@@ -20,6 +20,7 @@ import json
 from scipy import ndimage, signal
 import pdb
 import zipfile
+from utils.utils import get_video_masks_by_moving_random_stroke
 
 
 class ZipReader(object):
@@ -52,7 +53,7 @@ class dataset(data.Dataset):
     with open(os.path.join('../flist', data_name, 'mask.json'), 'r') as f:
       self.mask_dict = json.load(f)
     self.masks = list(self.mask_dict.keys())
-    self.size = size
+    self.size = self.w, self.h = size
     self.mask_type = mask_type
     self.data_name = data_name
 
@@ -78,9 +79,12 @@ class dataset(data.Dataset):
       image_ = np.float32(image_)/255.0
       images.append(torch.from_numpy(image_))
 
-      mask_ = self._get_masks(index, video, f)
-      mask_ = cv2.resize(mask_, self.size, cv2.INTER_NEAREST)
-      masks.append(torch.from_numpy(mask_))
+      if self.mask_type != 'random_obj':
+        mask_ = self._get_masks(index, video, f)
+        mask_ = cv2.resize(mask_, self.size, cv2.INTER_NEAREST)
+        masks.append(torch.from_numpy(mask_))
+    if self.mask_type == 'random_obj':
+      masks = get_video_masks_by_moving_random_stroke(len(frame_names), imageWidth=self.w, imageHeight=self.h)
 
     masks = torch.stack(masks)
     masks = ( masks == 1 ).type(torch.FloatTensor).unsqueeze(0)

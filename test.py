@@ -22,7 +22,7 @@ from utils.dataset import dataset
 from models.utils import to_var
 
 
-parser = argparse.ArgumentParser(description="CPNet")
+parser = argparse.ArgumentParser(description="Dee-Flow-Guided")
 parser.add_argument("-b", type=int, default=1)
 parser.add_argument("-e", type=int, default=0)
 parser.add_argument("-n", type=str, default='youtube-vos') 
