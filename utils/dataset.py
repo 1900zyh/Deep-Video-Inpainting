@@ -84,7 +84,7 @@ class dataset(data.Dataset):
         mask_ = cv2.resize(mask_, self.size, cv2.INTER_NEAREST)
         masks.append(torch.from_numpy(mask_))
     if self.mask_type == 'random_obj':
-      masks = [torch.from_numpy(np.array(m)/255) for m in get_video_masks_by_moving_random_stroke(len(frame_names), imageWidth=self.w, imageHeight=self.h)]
+      masks = [torch.from_numpy(np.array(m).astype(np.uint8)) for m in get_video_masks_by_moving_random_stroke(len(frame_names), imageWidth=self.w, imageHeight=self.h)]
 
     masks = torch.stack(masks)
     masks = ( masks == 1 ).type(torch.FloatTensor).unsqueeze(0)
