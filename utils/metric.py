@@ -5,7 +5,8 @@ from scipy import linalg
 import urllib.request
 from scipy.ndimage import gaussian_filter
 from numpy.lib.stride_tricks import as_strided as ast
-from skimage.measure import compare_ssim, compare_psnr
+from skimage.metrics import peak_signal_noise_ratio as compare_psnr 
+from skimage.metrics import structural_similarity as compare_ssim
 
 import torch
 from torchvision import transforms
@@ -85,7 +86,6 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     if not np.isfinite(covmean).all():
         msg = ('fid calculation produces singular product; '
                'adding %s to diagonal of cov estimates') % eps
-        logger.warning(msg)
         offset = np.eye(sigma1.shape[0]) * eps
         covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
 
