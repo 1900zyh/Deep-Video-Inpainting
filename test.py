@@ -45,7 +45,7 @@ torch.backends.cudnn.benchmark = True
 class Object():
   pass
 opt = Object()
-opt.size = (424, 240)
+opt.size = (432, 240)
 opt.search_range = 4 # fixed as 4: search range for flow subnetworks
 opt.pretrain_path = 'weights/save_agg_rec.pth'
 opt.result_path = 'results/{}_{}'.format(DATA_NAME, MASK_TYPE)
