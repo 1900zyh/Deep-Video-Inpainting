@@ -123,6 +123,7 @@ def main_worker(gpu, ngpus_per_node):
 
   with torch.no_grad():
     for seq, (inputs, masks, info) in enumerate(Trainloader):
+      orig_masks = masks
       idx = torch.LongTensor([i for i in range(pre-1,-1,-1)])
       seq_name = info['name'][0]
       print('[{}] {}/{}: {} for {} frames ...'.format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
@@ -223,10 +224,12 @@ def main_worker(gpu, ngpus_per_node):
       orig_writer = cv2.VideoWriter(os.path.join(save_path, 'orig.avi'),
         cv2.VideoWriter_fourcc(*"MJPG"), DEFAULT_FPS, opt.size)
       for f in range(len(comp_frames)):
-        comp_writer.write(comp_frames[f])
         pred_writer.write(pred_frames[f])
         mask_writer.write(mask_frames[f])
         orig_writer.write(orig_frames[f])
+        m = orig_masks.unsqueeze(0)[f,...].cpu().numpy()
+        comp_img = np.array(comp_frames[f]*m + orig_frames[f]*(1-m)).astype(np.uint8)
+        comp_writer.write(comp_img)
       comp_writer.release()
       pred_writer.release()
       mask_writer.release()
