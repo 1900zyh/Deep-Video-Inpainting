@@ -32,7 +32,7 @@ args = parser.parse_args()
 
 DATA_NAME = args.n
 MASK_TYPE = args.m
-DEFAULT_FPS = 6
+DEFAULT_FPS = 15
 # set random seed 
 seed = 2020
 torch.manual_seed(seed)
