@@ -122,6 +122,7 @@ def main_worker(gpu, ngpus_per_node):
   pre = 20
 
   with torch.no_grad():
+    all_time = 0
     for seq, (inputs, masks, info) in enumerate(Trainloader):
       orig_masks = masks
       idx = torch.LongTensor([i for i in range(pre-1,-1,-1)])
@@ -150,6 +151,7 @@ def main_worker(gpu, ngpus_per_node):
       mask_frames = []
 
       lstm_state = None
+      start = time.time()
       for t in range(num_frames):
         masked_inputs_ = []
         masks_ = []        
@@ -191,7 +193,6 @@ def main_worker(gpu, ngpus_per_node):
         masked_inputs_ = torch.stack(masked_inputs_).permute(1,0,2,3).unsqueeze(0)
         masks_ = torch.stack(masks_).permute(1,0,2,3).unsqueeze(0)
 
-        start = time.time()
         if t==0:
           prev_mask = masks_[:,:,2]
           prev_ones = to_var(torch.ones(prev_mask.size()))
@@ -206,35 +207,14 @@ def main_worker(gpu, ngpus_per_node):
         prev_feed = prev_feed.cuda()
 
         pred, outputs, _, _, _, _ = model(masked_inputs_, masks_, lstm_state, prev_feed, t)
-        end = time.time() - start
         if t >= pre:
           pred_frames.append(to_img(pred))
           comp_frames.append(to_img(outputs))
           mask_frames.append(to_img(masked_inputs[0:1,:,t:t+1]))
           orig_frames.append(to_img(inputs[0:1,:,t:t+1]))
-
-      # write frames into videos
-      os.makedirs(save_path, exist_ok=True)
-      comp_writer = cv2.VideoWriter(os.path.join(save_path, 'comp.avi'),
-        cv2.VideoWriter_fourcc(*"MJPG"), DEFAULT_FPS, opt.size)
-      pred_writer = cv2.VideoWriter(os.path.join(save_path, 'pred.avi'),
-        cv2.VideoWriter_fourcc(*"MJPG"), DEFAULT_FPS, opt.size)
-      mask_writer = cv2.VideoWriter(os.path.join(save_path, 'mask.avi'),
-        cv2.VideoWriter_fourcc(*"MJPG"), DEFAULT_FPS, opt.size)
-      orig_writer = cv2.VideoWriter(os.path.join(save_path, 'orig.avi'),
-        cv2.VideoWriter_fourcc(*"MJPG"), DEFAULT_FPS, opt.size)
-      for f in range(len(comp_frames)):
-        pred_writer.write(pred_frames[f])
-        mask_writer.write(mask_frames[f])
-        orig_writer.write(orig_frames[f])
-        m = orig_masks.squeeze()[f,:,:].cpu().numpy()
-        m = np.tile(np.expand_dims(m, axis=2), (1,1,3))
-        comp_img = np.array(comp_frames[f]*m + orig_frames[f]*(1-m)).astype(np.uint8)
-        comp_writer.write(comp_img)
-      comp_writer.release()
-      pred_writer.release()
-      mask_writer.release()
-      orig_writer.release()
+      end = time.time()
+      all_time += (end-start)
+      print('average execution time: ', all_time/(seq+1))
 
 
 
